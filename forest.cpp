@@ -74,7 +74,7 @@ class Node {
         Node* left;
         Node* right;
         double var_red;
-        double leaf_node_value;
+        double leaf_node_value = 0;
 
         Node() : feature_index(-1), threshold(0), left(nullptr), right(nullptr), var_red(0), leaf_node_value(0) {}
     
@@ -88,7 +88,7 @@ class Node {
 
 class DecisionTree {
     public:
-        std::vector<std::vector<double>> root;
+        Node* root;
         double min_samples_split = 2;
         int max_depth = 5;
 
@@ -154,7 +154,7 @@ class DecisionTree {
             
             struct best_split {
                 int feature_index;
-                int threshold;
+                double threshold;
                 std::pair<std::vector<std::vector<double>>, std::vector<double>> dataset_left;
                 std::pair<std::vector<std::vector<double>>, std::vector<double>> dataset_right;
                 double var_red;
@@ -216,7 +216,7 @@ class DecisionTree {
 
             if (num_samples >= min_samples_split && current_depth <= max_depth) {
                 auto best_split = get_best_split(dataset, num_samples, num_features);
-                std::cout << best_split.var_red;
+                // std::cout << best_split.var_red;
                 // std::cout << best_split.dataset_left.second.size();
 
                 if (best_split.var_red > 0) {
@@ -235,11 +235,45 @@ class DecisionTree {
                 }
             }
             double leaf_value = calculate_leaf_value(y);
-            std::cout << leaf_value;
+            // std::cout << leaf_value;
+            
             return new Node(leaf_value);
             // double leaf_value = calculate_leaf_value(y);
             // return std::make_unique<Node>(leaf_value);
         } 
+
+        void fit(std::pair<std::vector<std::vector<double>>, std::vector<double>>& dataset) {
+            DecisionTree DecisionTree;
+            root = DecisionTree.build_tree(dataset);
+        }
+
+        auto make_prediction(std::vector<double> x, Node* tree) {
+
+            if (tree->leaf_node_value) {
+                // std::cout << tree->leaf_node_value;
+                return tree->leaf_node_value;
+            }
+            auto feature_val = x[tree->feature_index];
+
+            if (feature_val <= tree->threshold) {
+                return make_prediction(x, tree->left);
+            } else {
+                return make_prediction(x, tree->right);
+            }
+
+
+        }
+
+        auto predict(std::vector<std::vector<double>> x) {
+            std::vector<double> predictions;
+            for (int i = 0; i < x.size(); i++) {
+                
+                double value_predicted = make_prediction(x[i], root);
+                predictions.push_back(value_predicted);
+            }
+
+            return predictions;
+        }
         
 };
 
@@ -268,8 +302,17 @@ int main() {
     auto photometric = std::vector<std::vector<double>> (dataset.photometric_vector.begin() + 1, dataset.photometric_vector.begin() + 51);
     auto redshift = std::vector<double> (dataset.redshift_vector.begin() + 1, dataset.redshift_vector.begin() + 51);
 
+    auto photometric_test = std::vector<std::vector<double>> (dataset.photometric_vector.begin() + 50, dataset.photometric_vector.begin() + 100);
+    auto redshift_test = std::vector<double> (dataset.redshift_vector.begin() + 50, dataset.redshift_vector.begin() + 100);
+
     std::pair<std::vector<std::vector<double>>, std::vector<double>> data = { photometric, redshift };
-    DecisionTree.build_tree(data);
+    DecisionTree.fit(data);
+
+    auto y_pred = DecisionTree.predict(photometric_test);
+
+    for (int i = 0; i < y_pred.size(); i++) {
+        std::cout << abs(redshift_test[i] - y_pred[i]) << "\n";
+    }
 
     return 0;
 }
