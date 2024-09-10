@@ -8,6 +8,7 @@
 #include <cmath>
 #include <random>
 
+// hold photometric and redshift data
 struct xy_values {
     std::vector<std::vector<double>> photometric_vector;
     std::vector<double> redshift_vector;
@@ -22,6 +23,7 @@ double stringToDouble(std::string& str) {
     }
 }
 
+// return a struct, containing data for processing
 xy_values openCSV() { // return a struct, that is why we use xy_values before declaring a function
     xy_values values;
     std::ifstream file("C:/Users/janar/Desktop/cplusplus/data.csv");  
@@ -30,7 +32,7 @@ xy_values openCSV() { // return a struct, that is why we use xy_values before de
     };
 
     // std::string data[1000][1000];
-    std::vector<std::vector<double>> photometric_data; // two dimesional vector, vectors because auto scaling
+    std::vector<std::vector<double>> photometric_data; 
     std::vector<double> redshift_data;
     std::string line;
     
@@ -47,7 +49,6 @@ xy_values openCSV() { // return a struct, that is why we use xy_values before de
 
                 if (current_index >= 4 && current_index < 13) {
                     row.push_back(value);
-                    // std::cout << current_index << '\n';
                 }
 
                 if (current_index == 13) {
@@ -91,7 +92,7 @@ class DecisionTree {
     public:
         Node* root;
         double min_samples_split = 2;
-        int max_depth = 5;
+        int max_depth = 10;
 
         double calculate_leaf_value(std::vector<double> y) {
             double summary = 0;
@@ -100,7 +101,6 @@ class DecisionTree {
             }
 
             return summary / y.size();
-            
         }
 
         double var(std::vector<double> element) {
@@ -178,7 +178,6 @@ class DecisionTree {
                 }
                 // sort 
                 std::sort(possible_thresholds.begin(), possible_thresholds.end());
-                // std::cout << possible_thresholds_sliced.size();
                 for (double threshold : possible_thresholds) {
                     auto [dataset_left, dataset_right] = split(photometric_vector_data, z_vector_data, feature_index, threshold);
 
@@ -194,64 +193,43 @@ class DecisionTree {
                             max_var_red = curr_var_red;
                         }
                     }
-                    // split(photometric_vector_data, z_vector_data, feature_index, threshold);
-                    // std::cout << threshold;
                 }
 
             }
-
             return best_split;
         }
 
         Node* build_tree(std::pair<std::vector<std::vector<double>>, std::vector<double>>& dataset, int current_depth = 0) {
-            // xy_values dataset = openCSV();
             auto [x, y] = dataset;
 
-            
-            // int num_samples = x.size();
-            // int num_features = x[0].size();
-            int num_samples = 50;
-            int num_features = 9;
-
-            // std::cout << dataset->redshift_vector.size();
+            int num_samples = static_cast<int> (x.size());
+            int num_features = static_cast<int> (x[0].size());
 
             if (num_samples >= min_samples_split && current_depth <= max_depth) {
-                auto best_split = get_best_split(dataset, num_samples, num_features);
-                // std::cout << best_split.var_red;
-                // std::cout << best_split.dataset_left.second.size();
+                auto best_split = get_best_split(dataset, num_samples, num_features); // get the best split
 
                 if (best_split.var_red > 0) {
+                    // recursion for left and right subtree
                     Node* left_subtree = build_tree(best_split.dataset_left, current_depth + 1);
                     Node* right_subtree = build_tree(best_split.dataset_right, current_depth + 1);
 
-                    // Node node;
-                    // node.feature_index = best_split.feature_index;
-                    // node.threshold = best_split.threshold;
-                    // node.left = left_subtree;
-                    // node.right = right_subtree;
-                    // node.var_red = best_split.var_red;
-                    // return node;
-                    // return Node(best_split.feature_index, best_split.threshold);
                     return new Node(best_split.feature_index, best_split.threshold, left_subtree, right_subtree, best_split.var_red);
                 }
             }
-            double leaf_value = calculate_leaf_value(y);
-            // std::cout << leaf_value;
+            double leaf_value = calculate_leaf_value(y); // calculate the mean of a leaf
             
-            return new Node(leaf_value);
-            // double leaf_value = calculate_leaf_value(y);
-            // return std::make_unique<Node>(leaf_value);
+            return new Node(leaf_value); // Node 'object'
         } 
 
+        // singular tree fitting
         void fit(std::pair<std::vector<std::vector<double>>, std::vector<double>>& dataset) {
             DecisionTree DecisionTree;
             root = DecisionTree.build_tree(dataset);
         }
 
+        // predict a value, singular tree
         auto make_prediction(std::vector<double> x, Node* tree) {
-
             if (tree->leaf_node_value) {
-                // std::cout << tree->leaf_node_value;
                 return tree->leaf_node_value;
             }
             auto feature_val = x[tree->feature_index];
@@ -261,14 +239,11 @@ class DecisionTree {
             } else {
                 return make_prediction(x, tree->right);
             }
-
-
         }
 
         auto predict(std::vector<std::vector<double>> x) {
             std::vector<double> predictions;
             for (int i = 0; i < x.size(); i++) {
-                
                 double value_predicted = make_prediction(x[i], root);
                 predictions.push_back(value_predicted);
             }
@@ -278,49 +253,36 @@ class DecisionTree {
         
 };
 
-
+// for random forest
 class RandomForestRegressor {
     public:
         int n_trees = 20;
         int min_samples_split = 2;
-        int max_depth = 2;
+        // int max_depth = 2;
         std::vector<DecisionTree> trees;
 
-    
     std::pair<std::vector<std::vector<double>>, std::vector<double>> 
     bootstrap(std::pair<std::vector<std::vector<double>>, std::vector<double>>& dataset) {
         std::vector<int> bootstrap_indices;
         auto [x, y] = dataset;
-        int n_samples = x.size();
+        int n_samples = static_cast<int> (x.size());
 
         std::random_device rd; // obtain a random number from hardware
         std::mt19937 gen(rd()); // seed the generator
         std::uniform_int_distribution<> distr(0, n_samples - 1); // define the range
 
-        for (int num = 0; num < round(n_samples / 2); num++) {
-            bootstrap_indices.push_back(distr(gen));
-        }
-
         std::vector<std::vector<double>> x_bootstrap; // photometric data
         std::vector<double> y_bootstrap; // redshift data
 
-        for (int i : bootstrap_indices) {
-            x_bootstrap.push_back(x[i]);
-        }
-
-        for (int i : bootstrap_indices) {
-            y_bootstrap.push_back(y[i]);
+        for (int num = 0; num < n_samples; num++) {
+            // bootstrap_indices.push_back(distr(gen));
+            int rand = distr(gen);
+            x_bootstrap.push_back(x[rand]);
+            y_bootstrap.push_back(y[rand]);
         }
 
         return { x_bootstrap, y_bootstrap };
     }
-
-    // auto fit_single_tree(std::pair<std::vector<std::vector<double>>, std::vector<double>>& dataset) {
-    //     // auto [x, y] = dataset;
-    //     DecisionTree DecisionTree;
-    //     DecisionTree.fit(dataset);
-    //     return DecisionTree;
-    // }
 
     void fit(std::pair<std::vector<std::vector<double>>, std::vector<double>>& dataset) {
         trees.clear();
@@ -331,8 +293,6 @@ class RandomForestRegressor {
             DecisionTree.fit(dataset);
             trees.push_back(DecisionTree);
         }
-
-
     }
 
     auto predict(std::vector<std::vector<double>> x) {
@@ -345,62 +305,45 @@ class RandomForestRegressor {
             for (int j = 0; j < predictions.size(); j++) {
                 output_from_trees[j][i] = predictions[j];
             }
-
-        
-
         }
 
         for (int i = 0; i < output_from_trees.size(); i++) {
             double sum = 0;
             for (int ii = 0; ii < output_from_trees[i].size(); ii++) {
                 sum += output_from_trees[i][ii];
-                // std::cout << sum;
             }
 
             double mean = sum / output_from_trees[i].size();
             mean_values.push_back(mean);
-
         }
-        
         return mean_values;
     }
 };
 
 
-
-
 int main() {
     xy_values dataset = openCSV();
-    // auto *dataset_pointer = &dataset;
-    DecisionTree DecisionTree;
     RandomForestRegressor RandomForestRegressor;
 
-    // std::vector<std::vector<double>> photometric_data_sliced (x.begin() + 1, x.begin() + 51);
-    // std::vector<double> z_data_sliced (y.begin() + 1, y.begin() + 51); 
+    auto photometric = std::vector<std::vector<double>> (dataset.photometric_vector.begin(), dataset.photometric_vector.begin() + 194960);
+    auto redshift = std::vector<double> (dataset.redshift_vector.begin(), dataset.redshift_vector.begin() + 194960);
 
-    // auto& [x, y] = dataset;
-    // std::pair<std::vector<std::vector<double>>, std::vector<double>> data = { dataset.photometric_vector, dataset.redshift_vector };
-    // {(dataset.photometric_vector.begin() + 1, dataset.photometric_vector.begin() + 51), (dataset.redshift_vector.begin() + 1, dataset.redshift_vector.begin() + 51)}
-
-    auto photometric = std::vector<std::vector<double>> (dataset.photometric_vector.begin() + 1, dataset.photometric_vector.begin() + 51);
-    auto redshift = std::vector<double> (dataset.redshift_vector.begin() + 1, dataset.redshift_vector.begin() + 51);
-
-    auto photometric_test = std::vector<std::vector<double>> (dataset.photometric_vector.begin() + 50, dataset.photometric_vector.begin() + 100);
-    auto redshift_test = std::vector<double> (dataset.redshift_vector.begin() + 50, dataset.redshift_vector.begin() + 100);
+    auto photometric_test = std::vector<std::vector<double>> (dataset.photometric_vector.begin() + 194960, dataset.photometric_vector.end());
+    auto redshift_test = std::vector<double> (dataset.redshift_vector.begin() + 194960, dataset.redshift_vector.end());
 
     std::pair<std::vector<std::vector<double>>, std::vector<double>> data = { photometric, redshift };
+
     RandomForestRegressor.fit(data);
 
     auto y_pred = RandomForestRegressor.predict(photometric_test);
 
+    double sum = 0;
     for (int i = 0; i < y_pred.size(); i++) {
-        std::cout << abs(redshift_test[i] - y_pred[i]) << "\n";
+        sum += abs(redshift_test[i] - y_pred[i]);
     }
-    // for (auto value : y_pred) {
-    // std::cout << y_pred.size();
-    // }
-    // RandomForestRegressor RandomForestRegressor;
-    // RandomForestRegressor.bootstrap(data);
+
+    double size = static_cast<double> (redshift_test.size());
+    std::cout << sum / size;
 
     return 0;
 }

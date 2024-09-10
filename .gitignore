@@ -8,3 +8,9 @@ scatterResult.png
 scatterResult2.png
 /out
 .vscode/
+testforestcpp
+app.py
+CMakeList.txt
+CMakePresets.json
+data.csv
+scatterResult3.png
